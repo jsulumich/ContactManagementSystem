@@ -1,0 +1,179 @@
+﻿@* page for user to view current contact information, edit contact information, or delete contact  *@
+
+@page "/EditContact/{Id}"
+@using ContactManagementSystem.Data
+@inject NavigationManager NavigationManager
+@using Microsoft.EntityFrameworkCore;
+@implements IDisposable
+@inject IDbContextFactory<ContactDbContext> DbFactory
+@inject NavigationManager Nav
+
+@* contact does not exist *@
+@if (contact == null && !Busy)
+{
+    <p>Could not find contact with ID @Id.</p>
+}
+else
+{
+    <ContactForm Busy="@Busy" Contact="@contact"
+                 IsAdd="false"
+                 CancelRequest="Cancel"
+                 ValidationResult="@(async (success) => await ValidationResultAsync(success))" />
+                 <br />
+                 <input type="button" class="btn btn-danger" @onclick="@openModal" value="Delete" />
+@* display Modal when "Delete Contact" button is selected *@
+    @if(isModalOpen)
+    {
+    <div class="modal" tabindex="-1" role="dialog" style="display:block;">
+    <div class="modal-dialog" role="document">
+        <div class="modal-content">
+        <div class="modal-header">
+            <h5 class="modal-title">Delete Contact</h5>
+            <button type="button" class="close" data-dismiss="modal" aria-label="Close" @onclick="@closeModal">
+            <span aria-hidden="true">&times;</span>
+            </button>
+        </div>
+        <div class="modal-body">
+            <p>Are you sure you want to delete this contact?</p>
+        </div>
+        <div class="modal-footer">
+            <button type="button" class="btn btn-primary" @onclick="@DeleteContact">Yes</button>
+            <button type="button" class="btn btn-secondary" data-dismiss="modal" @onclick="@closeModal">No</button>
+        </div>
+        </div>
+    </div>
+    </div>
+    }
+}
+@if (Error)
+{
+    <br />
+    <div class="alert alert-danger">Failed to update the contact (@ErrorMessage).</div>
+}
+
+@code {
+    /// <summary>
+    /// Id of contact to edit
+    /// </summary>
+    [Parameter]
+    public string Id { get; set; }
+
+    // context database access
+    private ContactDbContext context { get; set; }
+
+    /// Contact object being edited
+    private Contact contact { get; set; }
+
+
+    // indicates that app is busy
+    private bool Busy;
+
+    // true if an unexpected error occurs during update
+    private bool Error;
+
+    // Error message
+    private string ErrorMessage = string.Empty;
+
+    // true if modal is open
+    private bool isModalOpen = false;
+
+    // opens delete confirmation modal
+    void openModal()
+    {
+        isModalOpen = true;
+    }
+
+    // closes delete confirmation modal
+    void closeModal()
+    {
+        isModalOpen = false;
+    }
+
+    // load contact data
+    protected override async Task OnInitializedAsync()
+    {
+        Busy = true;
+
+        try
+        {
+            context = DbFactory.CreateDbContext();
+            contact = await context.Contacts
+                .SingleOrDefaultAsync(c => c.Id == Guid.Parse(Id));
+        }
+        finally
+        {
+            Busy = false;
+        }
+
+        await base.OnInitializedAsync();
+    }
+    
+
+    // Result of form validation
+    private async Task ValidationResultAsync(bool success)
+    {
+        if (Busy)
+        {
+            return;
+        }
+
+        if (!success)
+        {
+            // did not pass validation, but no errors
+            Error = false;
+            return;
+        }
+
+        Busy = true; // async
+        try
+        {
+            // update contact if validation passes
+            await context.SaveChangesAsync();
+            Nav.NavigateTo("");
+        }   
+        catch (Exception ex)
+        {
+             // unknown exception thrown
+            Error = true;
+            ErrorMessage = ex.Message;
+            Busy = false;
+        }
+    }
+
+    // delete contact record from database
+    private async void DeleteContact()
+    {
+         Busy = true; // async
+        try
+        {
+           context.Contacts.Remove(contact);
+           await context.SaveChangesAsync();
+           Busy = false;
+           Nav.NavigateTo("");
+        }
+        catch (Exception ex)
+        {
+             // unknown exception thrown
+            Error = true;
+            ErrorMessage = ex.Message;
+            Busy = false;
+        }
+
+       
+    }
+
+    // returns user to home screen
+    private void Cancel()
+    {
+        Busy = true;
+        Nav.NavigateTo("");
+    }
+
+
+    /// Implement IDisposable
+
+    public void Dispose()
+    {
+        context?.Dispose();
+    }
+}

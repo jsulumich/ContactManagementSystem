@@ -1,0 +1,139 @@
+﻿@* Serves as the home page for the application. Loads contacts from database into a table, and provides functionality for navigating to other pages. *@
+
+@page "/"
+
+@using Microsoft.EntityFrameworkCore
+@using ContactManagementSystem.Data
+@inject NavigationManager NavigationManager
+@inject IDbContextFactory<ContactDbContext> contextFactory
+
+
+@* page is still loading *@
+@if (ContactList is null)
+{
+    <p><em>Loading...</em></p>
+}
+@* no contacts in ContactList. Display empty table and "No Contacts Found" message *@
+else if(ContactList != null && ContactList.Count == 0)
+{
+<h1>Contacts</h1>
+
+<input type="button" class="btn btn-primary" @onclick="@addContact" value="New Contact" />
+ <br />
+<table class="table table-bordered table-hover">
+    <thead class="table-light">
+        <tr>
+            <th class="sort-th" @onclick="@(() => SortTable("LastName"))"> Last Name <span class="fa @(SetSortIcon("LastName"))"></span></th>     
+            <th class="sort-th" @onclick="@(() => SortTable("FirstName"))"> First Name <span class="fa @(SetSortIcon("FirstName"))"></span></th>                 
+            <th>Birth Date</th>
+            <th>Phone No.</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+</table>
+            <div class="row">
+                <div class="col-12 alert alert-warning">
+                    No contacts found.
+                </div>
+            </div>
+    
+}
+else
+@* ContactList contains entries. Display contacts in table *@
+{
+<h1>Contacts</h1>
+<input type="button" class="btn btn-primary" @onclick="@addContact" value="New Contact" />
+ <br /><br />
+<table class="table table-bordered table-hover">
+    <thead>
+        <tr>
+            <th class="sort-th" @onclick="@(() => SortTable("LastName"))"> Last Name <span class="fa @(SetSortIcon("LastName"))"></span></th>     
+            <th class="sort-th" @onclick="@(() => SortTable("FirstName"))"> First Name <span class="fa @(SetSortIcon("FirstName"))"></span></th>                 
+            <th>Birth Date</th>
+            <th>Phone No.</th>
+            <th>Action</th>
+        </tr>
+    </thead>
+    <tbody>
+        @foreach (var contact in ContactList)
+        {
+        <tr>
+            <td>@contact.LastName</td>
+            <td>@contact.FirstName</td>
+            <td>@contact.BirthDate?.ToShortDateString()</td>
+            <td>@contact.PhoneNumber</td>
+            <td>
+                <a class="nav-link" href="EditContact/@contact.Id">
+                    <span class="oi oi-pencil" aria-hidden="true"> Edit/View</span>
+                </a>
+            </td>
+        </tr>
+        }
+    </tbody>
+
+</table>
+}
+
+@code {
+    // list of contact objects
+    List<Contact> ContactList;
+    // indicates sort order
+    private bool isSortedAscending;
+    // keep track of column to sort by
+    private string activeSortColumn;
+
+    // pulls contacts from local database
+    protected override async Task OnInitializedAsync()
+    {
+          using var context = contextFactory.CreateDbContext();
+          ContactList = await context.Contacts.ToListAsync();
+    }
+    // re-direct to add contact page
+    void addContact()
+    {
+        NavigationManager.NavigateTo("AddContact");
+    }    
+
+    // sort table by selected column
+    private void SortTable(string columnName)
+    {
+        // sort ascending if not already sorted
+        if (columnName != activeSortColumn)
+        {
+            ContactList = ContactList.OrderBy(x => x.GetType().GetProperty(columnName).GetValue(x, null)).ToList();
+            isSortedAscending = true;
+            activeSortColumn = columnName;
+        }
+        else
+        {
+            if (isSortedAscending)
+            {
+                // sort descending if currently sorted ascending
+                ContactList = ContactList.OrderByDescending(x => x.GetType().GetProperty(columnName).GetValue(x, null)).ToList();
+            }
+            else
+            {
+                // sort ascending if currently sorted descending
+                ContactList = ContactList.OrderBy(x => x.GetType().GetProperty(columnName).GetValue(x, null)).ToList();
+            }
+            isSortedAscending = !isSortedAscending;
+        }
+    }
+
+    // sets sort icon based on sort order
+    private string SetSortIcon(string columnName)
+    {
+        if (activeSortColumn != columnName)
+        {
+            return string.Empty;
+        }
+        if (isSortedAscending)
+        {
+            return "fa-sort-up";
+        }
+        else
+        {
+            return "fa-sort-down";
+        }
+    }
+}

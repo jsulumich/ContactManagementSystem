@@ -1,0 +1,88 @@
+@page "/AddContact"
+@using ContactManagementSystem.Data
+@using Microsoft.EntityFrameworkCore
+@inject NavigationManager NavigationManager
+@inject IDbContextFactory<ContactDbContext> contextFactory
+
+
+@if (contact != null)
+{
+    <ContactForm Busy="@Busy" 
+                   Contact="@contact" 
+                   IsAdd="true"
+                   CancelRequest="Cancel"
+                   ValidationResult="@(async (success) => await ValidationResultAsync(success))" />
+}
+@if (Error)
+{
+    <br />
+    <div class="alert alert-danger">Failed to add the contact (@ErrorMessage).</div>
+}
+
+@code {
+
+    private Contact contact { get; set; }
+
+    // True when an asynchronous operation is running.
+    private bool Busy;
+
+    // True when an error occurs
+    private bool Error;
+
+    // Error message to display
+    private string ErrorMessage = string.Empty;
+
+    // create new contact object
+    protected override Task OnInitializedAsync()
+    {
+        contact = new();
+        return base.OnInitializedAsync();
+    }
+
+    //user submits form
+    private async Task ValidationResultAsync(bool success)
+    {
+        if (Busy)
+        {
+            return;
+        }
+
+        if (!success)
+        {
+            Error = false;
+            return;
+        }
+
+        Busy = true;
+
+        using var context = contextFactory.CreateDbContext();
+
+        try
+        {    
+            context.Contacts.Add(contact);
+            await context.SaveChangesAsync();
+            Error = false;
+            Busy = false;
+            NavigationManager.NavigateTo("");
+
+        }
+        // un-expected exception thrown
+        catch (Exception ex)
+        {
+            Error = true;
+            ErrorMessage = ex.Message;
+             Exception realerror = ex;
+            while (realerror.InnerException != null)
+            realerror = realerror.InnerException;
+
+        Console.WriteLine(realerror.ToString());
+            Busy = false;
+        }
+    }
+
+    // Re-directs user to home page
+    private void Cancel()
+    {
+        NavigationManager.NavigateTo("");
+    }
+}
